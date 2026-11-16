@@ -33,5 +33,8 @@ onMounted(async () => {
     <div class="stat"><div class="label">待生效</div><div class="value">{{ dash.scheduled_count }}</div></div>
     <div class="stat"><div class="label">已应用</div><div class="value">{{ dash.applied_count }}</div></div>
     <div class="stat"><div class="label">到期待应用</div><div class="value">{{ dash.due_now }}</div></div>
+    <div class="stat"><div class="label">漂移策略</div><div class="value" style="font-size:1rem">{{ dash.drift_strategy === 'allow' ? '允许漂移应用' : '遇漂移拒单' }}</div></div>
+    <div class="stat"><div class="label">漂移拒绝（单）</div><div class="value">{{ dash.drift_rejected_count }}</div></div>
+    <div class="stat"><div class="label">漂移放行（行）</div><div class="value">{{ dash.drift_applied_count }}</div></div>
   </div>
 </template>

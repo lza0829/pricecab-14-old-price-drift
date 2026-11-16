@@ -228,6 +228,20 @@ tbody tr:hover td {
 .tag.bad { color: #1a0a0e; background: var(--danger); border-color: var(--danger); }
 .tag.muted { color: var(--muted); }
 
+.muted { color: var(--muted); font-size: 0.82rem; }
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--bg-2) 80%, transparent);
+}
+.radio input { accent-color: var(--accent); }
+
 .msg {
   margin: 8px 0 0;
   color: var(--muted);

@@ -15,10 +15,18 @@ def dashboard() -> dict[str, Any]:
     conn = connect()
     try:
         clock = settings_repo.get(conn, "business_clock")
+        strategy = settings_repo.get(conn, "drift_strategy", "reject")
+        drift_rejected = conn.execute(
+            "SELECT COALESCE(SUM(rejected_count), 0) c FROM apply_batches"
+        ).fetchone()["c"]
+        drift_applied = conn.execute(
+            "SELECT COALESCE(SUM(drift_count), 0) c FROM apply_batches"
+        ).fetchone()["c"]
         return {
             "project": "pricecab",
             "name": "价签柜",
             "business_clock": clock,
+            "drift_strategy": strategy,
             "sku_count": conn.execute("SELECT COUNT(*) c FROM skus").fetchone()["c"],
             "ticket_count": conn.execute("SELECT COUNT(*) c FROM price_tickets").fetchone()["c"],
             "scheduled_count": conn.execute(
@@ -31,6 +39,8 @@ def dashboard() -> dict[str, Any]:
             "sale_count": conn.execute("SELECT COUNT(*) c FROM sales_fixture").fetchone()["c"],
             "batch_count": conn.execute("SELECT COUNT(*) c FROM apply_batches").fetchone()["c"],
             "due_now": len(ticket_repo.due_tickets(conn, clock or "")),
+            "drift_rejected_count": drift_rejected,
+            "drift_applied_count": drift_applied,
         }
     finally:
         conn.close()

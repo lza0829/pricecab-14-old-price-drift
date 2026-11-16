@@ -104,7 +104,7 @@ onMounted(() => refresh().catch((e) => (err.value = e.message)))
     <h2>改价单列表</h2>
     <table>
       <thead>
-        <tr><th>单号</th><th>标题</th><th>生效时刻</th><th>行数</th><th>状态</th><th>已应用批次</th></tr>
+        <tr><th>单号</th><th>标题</th><th>生效时刻</th><th>行数</th><th>状态</th><th>漂移记录</th><th>已应用批次</th></tr>
       </thead>
       <tbody>
         <tr v-for="t in tickets" :key="t.id">
@@ -114,6 +114,11 @@ onMounted(() => refresh().catch((e) => (err.value = e.message)))
           <td>{{ t.line_count }}</td>
           <td>
             <span class="tag" :class="t.status === 'applied' ? 'ok' : 'warn'">{{ t.status }}</span>
+          </td>
+          <td>
+            <span v-if="t.last_drift_reason" class="tag bad" :title="t.last_drift_at">漂移拒绝</span>
+            <span v-else>—</span>
+            <div v-if="t.last_drift_reason" class="muted" style="margin-top:4px">{{ t.last_drift_reason }}</div>
           </td>
           <td>{{ t.apply_batch_id || '—' }}</td>
         </tr>

@@ -38,7 +38,9 @@ def init_schema(conn) -> None:
           note TEXT,
           created_at TEXT NOT NULL,
           applied_at TEXT,
-          apply_batch_id INTEGER
+          apply_batch_id INTEGER,
+          last_drift_at TEXT,
+          last_drift_reason TEXT
         );
         CREATE TABLE IF NOT EXISTS price_ticket_lines (
           id INTEGER PRIMARY KEY,
@@ -54,6 +56,25 @@ def init_schema(conn) -> None:
           ticket_count INTEGER NOT NULL,
           line_count INTEGER NOT NULL,
           status TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          strategy TEXT,
+          applied_count INTEGER NOT NULL DEFAULT 0,
+          rejected_count INTEGER NOT NULL DEFAULT 0,
+          drift_count INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS apply_batch_lines (
+          id INTEGER PRIMARY KEY,
+          batch_id INTEGER NOT NULL REFERENCES apply_batches(id) ON DELETE CASCADE,
+          ticket_id INTEGER NOT NULL,
+          ticket_no TEXT NOT NULL,
+          sku_code TEXT NOT NULL,
+          expected_old_price REAL NOT NULL,
+          actual_old_price REAL,
+          new_price REAL NOT NULL,
+          drifted INTEGER NOT NULL DEFAULT 0,
+          rechecked INTEGER NOT NULL DEFAULT 0,
+          decision TEXT NOT NULL,
+          reason TEXT,
           created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS price_book (
@@ -69,7 +90,10 @@ def init_schema(conn) -> None:
           price REAL NOT NULL,
           source_ticket_no TEXT,
           effective_at TEXT NOT NULL,
-          recorded_at TEXT NOT NULL
+          recorded_at TEXT NOT NULL,
+          expected_old_price REAL,
+          actual_old_price REAL,
+          drifted INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS sales_fixture (
           id INTEGER PRIMARY KEY,
@@ -89,10 +113,35 @@ def init_schema(conn) -> None:
     )
 
 
+def _ensure_column(conn, table: str, column: str, ddl: str) -> None:
+    """Add a column to an existing table if it is missing (cheap migration)."""
+    cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+
+def migrate(conn) -> None:
+    """Bring databases created by older versions up to the current schema."""
+    _ensure_column(conn, "price_tickets", "last_drift_at", "last_drift_at TEXT")
+    _ensure_column(conn, "price_tickets", "last_drift_reason", "last_drift_reason TEXT")
+    _ensure_column(conn, "price_history", "expected_old_price", "expected_old_price REAL")
+    _ensure_column(conn, "price_history", "actual_old_price", "actual_old_price REAL")
+    _ensure_column(conn, "price_history", "drifted", "drifted INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "apply_batches", "strategy", "strategy TEXT")
+    _ensure_column(conn, "apply_batches", "applied_count", "applied_count INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "apply_batches", "rejected_count", "rejected_count INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "apply_batches", "drift_count", "drift_count INTEGER NOT NULL DEFAULT 0")
+
+
 def seed_if_empty() -> None:
     conn = connect()
     try:
         init_schema(conn)
+        migrate(conn)
+        # 漂移策略互斥：reject（遇漂移拒单）/ allow（允许漂移应用），默认 reject。
+        conn.execute(
+            "INSERT OR IGNORE INTO settings(key, value) VALUES ('drift_strategy', 'reject')"
+        )
         n = conn.execute("SELECT COUNT(*) c FROM skus").fetchone()["c"]
         if n:
             conn.commit()
@@ -101,6 +150,8 @@ def seed_if_empty() -> None:
         skus = json.loads((FIXTURES / "skus.json").read_text(encoding="utf-8"))
         sales = json.loads((FIXTURES / "sales.json").read_text(encoding="utf-8"))
         now = _now()
+        # 初始价自业务日 0 点起生效，让当日销售夹具都能对上正式历史链。
+        day_start = "2026-11-16T00:00:00Z"
         for s in skus:
             conn.execute(
                 "INSERT INTO skus(sku_code, title, category, list_price, enabled) VALUES (?,?,?,?,1)",
@@ -108,11 +159,11 @@ def seed_if_empty() -> None:
             )
             conn.execute(
                 "INSERT INTO price_book(sku_code, current_price, source_ticket_no, effective_at, updated_at) VALUES (?,?,NULL,?,?)",
-                (s["sku_code"], float(s["list_price"]), now, now),
+                (s["sku_code"], float(s["list_price"]), day_start, now),
             )
             conn.execute(
                 "INSERT INTO price_history(sku_code, price, source_ticket_no, effective_at, recorded_at) VALUES (?,?,NULL,?,?)",
-                (s["sku_code"], float(s["list_price"]), now, now),
+                (s["sku_code"], float(s["list_price"]), day_start, now),
             )
         for row in sales:
             conn.execute(

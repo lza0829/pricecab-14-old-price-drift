@@ -25,9 +25,15 @@ export const api = {
   clock: () => request('/api/apply/clock'),
   setClock: (business_clock) =>
     request('/api/apply/clock', { method: 'PUT', body: JSON.stringify({ business_clock }) }),
+  strategy: () => request('/api/apply/strategy'),
+  setStrategy: (drift_strategy) =>
+    request('/api/apply/strategy', { method: 'PUT', body: JSON.stringify({ drift_strategy }) }),
   applyDue: () => request('/api/apply/due', { method: 'POST' }),
   batches: () => request('/api/apply/batches'),
+  batchLines: (id) => request(`/api/apply/batches/${id}/lines`),
   priceBook: () => request('/api/prices/book'),
   history: (sku) => request(sku ? `/api/prices/history?sku_code=${encodeURIComponent(sku)}` : '/api/prices/history'),
+  adjustPrice: (body) => request('/api/prices/adjust', { method: 'POST', body: JSON.stringify(body) }),
+  verifyPrices: () => request('/api/prices/verify'),
   reconcile: () => request('/api/reconcile/sales'),
 }

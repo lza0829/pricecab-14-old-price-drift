@@ -95,8 +95,32 @@ def mark_applied(
     conn.execute(
         '''
         UPDATE price_tickets
-        SET status='applied', applied_at=?, apply_batch_id=?
+        SET status='applied', applied_at=?, apply_batch_id=?,
+            last_drift_at=NULL, last_drift_reason=NULL
         WHERE id=?
         ''',
         (applied_at, batch_id, ticket_id),
     )
+
+
+def mark_drift_rejected(
+    conn: sqlite3.Connection,
+    ticket_id: int,
+    *,
+    drifted_at: str,
+    reason: str,
+) -> None:
+    """Record the drift reason; the ticket stays scheduled (processable)."""
+    conn.execute(
+        '''
+        UPDATE price_tickets
+        SET last_drift_at=?, last_drift_reason=?
+        WHERE id=?
+        ''',
+        (drifted_at, reason, ticket_id),
+    )
+
+
+def get_status(conn: sqlite3.Connection, ticket_id: int) -> str | None:
+    row = conn.execute("SELECT status FROM price_tickets WHERE id=?", (ticket_id,)).fetchone()
+    return row["status"] if row else None
